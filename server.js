@@ -34,10 +34,10 @@ app.get('/login', async (req, res) => {
     await sql.connect(config);
 
     var result;
-    if(userType=='user')
-    result = await sql.query`SELECT * FROM _user WHERE email = ${username} AND password = ${password}`;
+    if (userType == 'user')
+      result = await sql.query`SELECT * FROM _user WHERE email = ${username} AND password = ${password}`;
     else
-    result = await sql.query`SELECT * FROM admin WHERE email = ${username} AND password = ${password}`;
+      result = await sql.query`SELECT * FROM admin WHERE email = ${username} AND password = ${password}`;
     if (result.recordset.length > 0) {
       res.json({ success: true, message: "success" });
     } else {
@@ -70,5 +70,71 @@ app.post('/signup', async (req, res) => {
   } finally {
 
     await sql.close();
+  }
+});
+
+
+app.get("/main", async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request().query("SELECT cover, manga_name FROM library");
+    const mangaList = result.recordset.map((row) => ({
+      name: row.manga_name,
+      coverPage: row.cover,
+    }));
+    res.json(mangaList);
+  } catch (err) {
+    console.error("Error querying database:", err);
+    res.status(500).send("Error querying database.");
+  }
+});
+
+app.get('/list', async (req, res) => {
+  try {
+    const pool = await sql.connect(config);
+    const request = pool.request();
+    const searchQuery = req.query.search;
+    const result = await request.query(`SELECT manga_name, manga_id FROM library WHERE manga_name LIKE '%${searchQuery}%'`);
+    const mangaList = result.recordset.map((row) => ({
+      title: row.manga_name,
+      id: row.manga_id,
+    }));
+    console.log(mangaList);
+    res.json(mangaList);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+
+
+app.get("/dash", async (req, res) => {
+  const { email } = req.query;
+  
+  try {
+    await sql.connect(config);
+    console.log("received");
+    var result;
+    result = await sql.query`select name,email
+    from library
+    where email=${email}`;
+    var result2;
+    result2 = await sql.query`select manga_name
+    from library join favourites on library.manga_id=favourites.manga_id
+    where favourites.email=${email}`;
+      
+    const favorites = result2.recordset.map((row) => row.manga_name);
+
+    res.json({
+      name: result.recordset[0].name,
+      email: result.recordset[0].email,
+      favorites: favorites,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ success: false });
+  } finally {
+    sql.close();
   }
 });
